@@ -1,0 +1,45 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdk PROP_COMPILE_SDK_VERSION.toInteger()
+
+    defaultConfig {
+        applicationId "com.flamingo.td"
+        minSdkVersion PROP_MIN_SDK_VERSION
+        targetSdkVersion PROP_TARGET_SDK_VERSION
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        flavorDimensions = ["agent"]
+        buildConfig = true
+    }
+
+    productFlavors {
+        wechat {
+            dimension 'agent'
+            applicationId "com.flamingo.x11_xxl.wechat"
+            buildConfigField("String", "URL_ENTRY", '"https://sicilyclient.sdmpzz.com/h5game/#/scl_foelbkl65jhk5olukhg"')
+            // 引力引擎：项目通行证 AccessToken 与初始化渠道（按渠道注入，勿写死在 Java 里）
+            buildConfigField("String", "GE_ACCESS_TOKEN", '"pjExPDC9u3TW0fgtyrKiNmbO8Uksmz26"')
+            buildConfigField("String", "GE_CHANNEL", '"wechat"')
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    // 引力引擎(Gravity Engine) Android SDK（国内版）
+    implementation "cn.gravity.android:GravityEngineSDK:5.0.31"
+    // OAID 采集依赖（提升归因率）。如打包后出现 AdvertisingIdClient$Info is defined multiple times，
+    // 按文档说明在对应设备上去掉冲突的一方即可。
+    implementation "com.huawei.hms:ads-identifier:3.4.62.300"   // 华为
+}

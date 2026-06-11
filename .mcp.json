@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "doc-reader": {
+      "command": "node",
+      "args": ["./tools/doc-mcp/index.js"]
+    }
+  }
+}

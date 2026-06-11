@@ -1,0 +1,3 @@
+keyAlias:xxl_x11
+keyPassword:xxl_x11!@#
+storePassword:xxl_x11!@#
