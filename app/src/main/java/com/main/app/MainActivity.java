@@ -33,6 +33,8 @@ public class MainActivity extends Activity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setCacheMode(LOAD_NO_CACHE);
         mWebView.setWebViewClient(new MyWebViewClient());
+        // 注入 JS bridge：H5 经 window.AndroidBridge 上报付费/注册到巨量+引力（仅在同意后加载游戏，时机天然安全）。
+        mWebView.addJavascriptInterface(new WebAppBridge(this), "AndroidBridge");
 
         // 已同意过的用户直接进游戏；首次启动（未同意）先弹隐私政策，同意后才初始化 SDK 并加载。
         if (PrivacyManager.hasAgreed(this)) {
@@ -46,11 +48,11 @@ public class MainActivity extends Activity {
 
     /** 加载游戏 H5（远程 URL 由 flavor 的 BuildConfig 注入）。 */
     private void loadGame() {
-        // REMOTE RESOURCE
-        mWebView.loadUrl(BuildConfig.URL_ENTRY);
+        // ===== 临时：JS bridge 自测，加载本地测试页。验证完请改回下面的 REMOTE 行！ =====
+        mWebView.loadUrl("file:///android_asset/index.html");
 
-        // LOCAL RESOURCE
-        // mWebView.loadUrl("file:///android_asset/index.html");
+        // REMOTE RESOURCE（正式：加载远程游戏）
+        // mWebView.loadUrl(BuildConfig.URL_ENTRY);
     }
 
     /** 首次启动的隐私政策弹窗：不同意退出、同意后初始化 SDK 再加载游戏。 */

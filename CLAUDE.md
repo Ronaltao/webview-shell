@@ -50,7 +50,7 @@ Analytics/attribution SDK integrated for buy-volume (买量) & ROI tracking. Off
 - **Repos**: added to `allprojects.repositories` in root `build.gradle` (gravity nexus + huawei + hihonor maven).
 - **minSdk**: the SDK requires `minSdkVersion >= 19` (raised from the template's 16; later bumped again to 21 for 巨量 — see below).
 - **Permissions/queries** (network state, `READ_PHONE_STATE`, OAID `<queries>`, etc.) come from the SDK AAR's own manifest via manifest merge — they are NOT re-declared in the app manifest.
-- **Event reporting** (not yet wired up — call on the saved `GravityEngineSDK` instance when those business events occur): `trackRegisterEvent()`, `trackPayEvent(...)`, `trackAdShowEvent(...)`, `trackWithdrawEvent(...)`. Since this is a WebView shell, these would typically be triggered from H5 via a JS bridge.
+- **Event reporting**: 付费/注册 are wired through `WebAppBridge` (see JS bridge below). `App.trackPurchase(...)` calls `geInstance.trackPayEvent(payAmount分, payType, orderId, payReason, payMethod)` and `App.trackRegister(...)` calls `geInstance.trackRegisterEvent()` on the saved instance. Other preset events (`trackAdShowEvent(...)`, `trackWithdrawEvent(...)`) are not wired yet — add wrappers the same way.
 
 ## 巨量引擎 (Ocean Engine) 转化 SDK — AppConvert / BDConvert
 
@@ -61,7 +61,19 @@ ByteDance buy-volume attribution SDK ("巨量归因方案", domestic non-融合 
 - **Dependency**: `com.bytedance.ads:AppConvert:2.0.4`. **Repo**: `https://artifact.bytedance.com/repository/Volcengine/` added to `allprojects.repositories`. Proguard rules are bundled in the AAR — the host does **not** add any. Check the Lark doc for newer versions.
 - **minSdk**: AppConvert 2.0.4 requires `minSdkVersion >= 21`, so `PROP_MIN_SDK_VERSION` was raised 19 → 21.
 - **Platform setup** (outside the code): 巨量后台 → 资产 → 新建安卓应用资产 (fill `applicationId`) → 数据检测选「转化SDK」→ 调试事件.
-- **Event reporting** (not yet wired up): `com.bytedance.ads.convert.event.ConvertReportHelper.onEventRegister(channel, success)` / `onEventPurchase(...)` / `onEventV3(name, jsonObject)` (e.g. `game_addiction` 关键行为). As a WebView shell, these would be triggered from H5 via a JS bridge.
+- **Event reporting**: 付费/注册 are wired through `WebAppBridge`. `App.trackPurchase(...)` calls `ConvertReportHelper.onEventPurchase(contentType, contentName, contentId, contentNumber, paymentChannel, currency, isSuccess, currencyAmount元)` and `App.trackRegister(...)` calls `ConvertReportHelper.onEventRegister(channel, success)`. `onEventV3(name, jsonObject)` (e.g. `game_addiction` 关键行为) is available for custom events but not wired yet.
+
+## H5 → 原生 JS bridge (WebAppBridge)
+
+`WebAppBridge.java` exposes payment/register reporting to the H5 game so business events reach **both** SDKs at once. `MainActivity` registers it via `mWebView.addJavascriptInterface(new WebAppBridge(this), "AndroidBridge")`, so H5 calls `window.AndroidBridge.reportPurchase(json)` / `reportRegister(json)` — each takes a **single JSON string** (adding fields never breaks the signature).
+
+- **Flow**: bridge parses JSON → `((App) activity.getApplication()).trackPurchase(...)` / `trackRegister(...)` → fans out to 巨量 (`ConvertReportHelper.*`, static) + 引力 (saved `geInstance`, null-checked).
+- **`reportPurchase` JSON**: `amount` (required, **单位「分」/cents** to preserve precision), `currency` (default `CNY`), `orderId`, `productName`, `contentType` (default `game`), `channel` (default `BuildConfig.GE_CHANNEL`), `success` (default `true`).
+- **`reportRegister` JSON**: `channel` (default `GE_CHANNEL`).
+- **Amount-unit reconciliation**: H5 sends 分; for 巨量 `currencyAmount` (整数元) the bridge passes `amount/100` (**sub-yuan is truncated — 巨量 API limitation**); 引力 `trackPayEvent` gets 分 directly.
+- **Threading**: `@JavascriptInterface` methods run on the WebView JS binder thread, NOT the UI thread. Both SDKs queue events internally, so calls are made directly off that thread — no `runOnUiThread` (which would need an anonymous `Runnable`, hitting the R8 dex bug). Keep `WebAppBridge` a top-level named class for the same reason.
+- **Consent**: bridge methods early-return unless `PrivacyManager.hasAgreed`; in practice the game (hence the bridge's reachability) only loads post-consent anyway.
+- **Security**: `addJavascriptInterface` is visible to every page in the WebView, including the remote (possibly http) game URL. Bridge only fires analytics so risk is low; tighten by host-checking before reporting if needed.
 
 ## Build & run
 

@@ -31,8 +31,8 @@ android {
             buildConfigField("String", "GE_ACCESS_TOKEN", '"pjExPDC9u3TW0fgtyrKiNmbO8Uksmz26"')
             buildConfigField("String", "GE_CHANNEL", '"wechat"')
             // 隐私弹窗里《隐私政策》《用户协议》的链接（按渠道注入）。TODO 占位，待提供正式地址后替换
-            buildConfigField("String", "PRIVACY_POLICY_URL", '"https://example.com/privacy"')
-            buildConfigField("String", "USER_AGREEMENT_URL", '"https://example.com/agreement"')
+            buildConfigField("String", "PRIVACY_POLICY_URL", '"https://sicilygame.sdmpzz.com/auth/base/gamePolicy/2yhsaTBuhfVuiXMx"')
+            buildConfigField("String", "USER_AGREEMENT_URL", '"https://sicilygame.sdmpzz.com/auth/base/gamePolicy/0qSHN6udEfy2vdbk"')
         }
     }
 }

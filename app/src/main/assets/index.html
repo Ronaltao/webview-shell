@@ -1,11 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>JS Bridge 自测</title>
+    <style>
+        body { font-family: monospace; padding: 16px; font-size: 16px; }
+        h3 { margin: 16px 0 8px; }
+        button { display: block; width: 100%; padding: 14px; margin: 8px 0;
+                 font-size: 16px; border: 1px solid #888; border-radius: 8px; background: #f3f3f3; }
+        button:active { background: #ddd; }
+        #log { white-space: pre-wrap; word-break: break-all; background: #111; color: #0f0;
+               padding: 12px; border-radius: 8px; min-height: 120px; margin-top: 12px; }
+    </style>
 </head>
-<body style="font-family: monospace">
-    REPLACE THIS FILE WITH YOUR OWN INDEX.HTML
+<body>
+    <h3>JS Bridge 自测页（临时）</h3>
+    <div id="bridge-status"></div>
+
+    <button onclick="doPurchase()">① 上报付费 reportPurchase（6.00 元）</button>
+    <button onclick="doRegister()">② 上报注册 reportRegister</button>
+    <button onclick="clearLog()">清空日志</button>
+
+    <div id="log"></div>
+
+    <script>
+        function log(msg) {
+            var el = document.getElementById('log');
+            el.textContent += msg + '\n';
+        }
+        function clearLog() { document.getElementById('log').textContent = ''; }
+
+        // 检测 bridge 是否注入成功
+        (function () {
+            var ok = !!(window.AndroidBridge && window.AndroidBridge.reportPurchase);
+            document.getElementById('bridge-status').textContent =
+                ok ? '✅ window.AndroidBridge 已注入' : '❌ 未检测到 window.AndroidBridge';
+        })();
+
+        function doPurchase() {
+            var payload = {
+                amount: 600,            // 单位「分」= 6.00 元
+                currency: "CNY",
+                orderId: "test_order_" + Date.now(),
+                productName: "新手礼包",
+                contentType: "game",
+                channel: "wechat",
+                success: true
+            };
+            try {
+                window.AndroidBridge.reportPurchase(JSON.stringify(payload));
+                log('→ reportPurchase 已调用: ' + JSON.stringify(payload));
+            } catch (e) {
+                log('✗ reportPurchase 出错: ' + e);
+            }
+        }
+
+        function doRegister() {
+            var payload = { channel: "wechat" };
+            try {
+                window.AndroidBridge.reportRegister(JSON.stringify(payload));
+                log('→ reportRegister 已调用: ' + JSON.stringify(payload));
+            } catch (e) {
+                log('✗ reportRegister 出错: ' + e);
+            }
+        }
+    </script>
 </body>
 </html>

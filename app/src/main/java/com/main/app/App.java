@@ -11,6 +11,7 @@ import cn.gravity.android.GravityEngineSDK;
 import cn.gravity.android.InitializeCallback;
 
 import com.bytedance.ads.convert.BDConvert;
+import com.bytedance.ads.convert.event.ConvertReportHelper;
 
 /**
  * 应用入口 Application。
@@ -30,6 +31,9 @@ public class App extends Application {
 
     /** 是否开启同步获取归因信息，默认关闭。如需同步归因请参考引力文档后置为 true。 */
     private static final boolean ENABLE_SYNC_ATTRIBUTION = false;
+
+    /** 引力引擎实例，初始化后保存，供事件上报（付费/注册等）复用；未初始化时为 null。 */
+    private GravityEngineSDK geInstance;
 
     @Override
     public void onCreate() {
@@ -51,6 +55,7 @@ public class App extends Application {
         config.enableMAC(true);
 
         GravityEngineSDK instance = GravityEngineSDK.setupAndStart(config);
+        geInstance = instance; // 保存实例，供后续事件上报复用
 
         // 2. 初始化。client_id / client_name 传空字符串，交由 SDK 自动采集设备 ID。
         //    首次安装启动时调用，等 onSuccess 回调成功后才能继续调用其它事件上报方法。
@@ -88,10 +93,46 @@ public class App extends Application {
      * 归因应用由巨量后台「资产」按包名(applicationId)登记，因此无需在代码里注入 AppID。
      *
      * 注：与引力引擎不同，本 SDK 必须拿到 Activity，故由 {@link MainActivity}（已在同意门控内）
-     * 调用，而非 App.onCreate。事件上报（注册/付费等）尚未接入，需要时调用
-     * com.bytedance.ads.convert.event.ConvertReportHelper 的对应方法。
+     * 调用，而非 App.onCreate。付费/注册等事件由 H5 经 {@link WebAppBridge} 透传后，
+     * 调用本类的 {@link #trackPurchase} / {@link #trackRegister} 上报。
      */
     public void setupBytedanceConvert(Activity activity) {
         BDConvert.INSTANCE.init(this, activity);
+    }
+
+    /**
+     * 上报付费事件，同时写入巨量与引力两个 SDK。由 {@link WebAppBridge} 在 H5 付费成功时调用。
+     *
+     * @param amountFen    付费金额，单位「分」（H5 统一传分以保精度，这里再按各 SDK 单位换算）
+     * @param currency     货币类型，如 "CNY"
+     * @param orderId      订单号
+     * @param productName  商品名
+     * @param contentType  内容类型（巨量 contentType），如 "game"
+     * @param channel      渠道（巨量 paymentChannel），如 "wechat"
+     * @param success      是否支付成功
+     */
+    public void trackPurchase(int amountFen, String currency, String orderId,
+                              String productName, String contentType, String channel, boolean success) {
+        // 巨量：currencyAmount 单位为「元」(int)，= 分/100（不足 1 元会被截断，是巨量 API 本身的精度限制）；
+        //      contentNumber 固定 1，contentId 用订单号。
+        ConvertReportHelper.onEventPurchase(
+                contentType, productName, orderId, 1, channel, currency, success, amountFen / 100);
+        // 引力：trackPayEvent(payAmount分, payType, orderId, payReason, payMethod)
+        if (geInstance != null) {
+            geInstance.trackPayEvent(amountFen, currency, orderId, productName, channel);
+        }
+    }
+
+    /**
+     * 上报注册事件，同时写入巨量与引力两个 SDK。由 {@link WebAppBridge} 在 H5 注册成功时调用。
+     *
+     * @param channel 渠道，如 "wechat"
+     */
+    public void trackRegister(String channel) {
+        // Log.d("TestRegister", "触发了注册======================");
+        ConvertReportHelper.onEventRegister(channel, true);
+        if (geInstance != null) {
+            geInstance.trackRegisterEvent();
+        }
     }
 }
