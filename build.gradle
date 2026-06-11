@@ -20,5 +20,7 @@ allprojects {
         // 华为/荣耀 OAID(ads-identifier) 仓库
         maven { url 'https://developer.huawei.com/repo' }
         maven { url 'https://developer.hihonor.com/repo' }
+        // 巨量引擎广告转化(AppConvert/BDConvert) SDK 仓库
+        maven { url 'https://artifact.bytedance.com/repository/Volcengine/' }
     }
 }

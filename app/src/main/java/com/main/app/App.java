@@ -1,5 +1,6 @@
 package com.main.app;
 
+import android.app.Activity;
 import android.app.Application;
 import android.util.Log;
 
@@ -8,6 +9,8 @@ import org.json.JSONObject;
 import cn.gravity.android.GEConfig;
 import cn.gravity.android.GravityEngineSDK;
 import cn.gravity.android.InitializeCallback;
+
+import com.bytedance.ads.convert.BDConvert;
 
 /**
  * 应用入口 Application。
@@ -75,5 +78,20 @@ public class App extends Application {
             Log.d(TAG, "initialize success");
             Log.d(TAG, "initialize success" + initializeBody);
         }
+    }
+
+    /**
+     * 初始化巨量引擎广告转化 SDK(BDConvert)。务必在用户同意隐私政策后调用。
+     *
+     * 采用官方文档「接入方式 A」：传入当前 Activity，SDK 内部不持有该引用（无内存泄漏），
+     * 初始化后会自动发送启动事件，并采集 OAID/AndroidID 用于买量归因。
+     * 归因应用由巨量后台「资产」按包名(applicationId)登记，因此无需在代码里注入 AppID。
+     *
+     * 注：与引力引擎不同，本 SDK 必须拿到 Activity，故由 {@link MainActivity}（已在同意门控内）
+     * 调用，而非 App.onCreate。事件上报（注册/付费等）尚未接入，需要时调用
+     * com.bytedance.ads.convert.event.ConvertReportHelper 的对应方法。
+     */
+    public void setupBytedanceConvert(Activity activity) {
+        BDConvert.INSTANCE.init(this, activity);
     }
 }

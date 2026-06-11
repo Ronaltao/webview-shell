@@ -36,6 +36,8 @@ public class MainActivity extends Activity {
 
         // 已同意过的用户直接进游戏；首次启动（未同意）先弹隐私政策，同意后才初始化 SDK 并加载。
         if (PrivacyManager.hasAgreed(this)) {
+            // 巨量转化 SDK 需要 Activity，无法在 App.onCreate 初始化，故老用户也在此处初始化。
+            ((App) getApplication()).setupBytedanceConvert(this);
             loadGame();
         } else {
             showPrivacyDialog();
@@ -84,7 +86,9 @@ public class MainActivity extends Activity {
         @Override
         public void onClick(DialogInterface dialog, int which) {
             PrivacyManager.setAgreed(activity);
-            ((App) activity.getApplication()).setupGravityEngine();
+            App app = (App) activity.getApplication();
+            app.setupGravityEngine();         // 引力引擎
+            app.setupBytedanceConvert(activity); // 巨量转化
             activity.loadGame();
         }
     }

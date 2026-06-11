@@ -45,4 +45,8 @@ dependencies {
     // OAID 采集依赖（提升归因率）。如打包后出现 AdvertisingIdClient$Info is defined multiple times，
     // 按文档说明在对应设备上去掉冲突的一方即可。
     implementation "com.huawei.hms:ads-identifier:3.4.62.300"   // 华为
+
+    // 巨量引擎广告转化 SDK(AppConvert / BDConvert)，买量归因用。
+    // 归因应用由巨量后台「资产」按包名(applicationId)登记，无需在代码注入 AppID；混淆规则由 SDK 内置。
+    implementation "com.bytedance.ads:AppConvert:2.0.4"
 }

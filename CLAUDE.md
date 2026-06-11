@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A thin Android **WebView shell** that wraps a remote H5 game website into a native APK. Based on the `slymax/webview` template. The entire app is two Java files — there is essentially no business logic; the app loads a URL into a full-screen WebView and ships it as a branded, per-channel APK.
+A thin Android **WebView shell** that wraps a remote H5 game website into a native APK. Based on the `slymax/webview` template. The app is a handful of small Java files — there is essentially no business logic; it loads a URL into a full-screen WebView (behind a first-launch privacy dialog) and ships it as a branded, per-channel APK.
 
 The real "product" of this repo is the **build configuration**, not the code. Each release is a re-skin: a different target URL, app name, icon, package id, and signing key. Understand the customization points below before changing anything.
 
@@ -25,22 +25,43 @@ Channels are modeled as Gradle **product flavors** under the `agent` dimension i
 
 - `MainActivity.java` — configures the WebView (JavaScript on, DOM storage on, `LOAD_NO_CACHE`, file/content access on) and loads `BuildConfig.URL_ENTRY`. Back button navigates WebView history before exiting. A commented-out `loadUrl("file:///android_asset/index.html")` line is the alternate "local HTML5 app" mode using `app/src/main/assets/index.html`.
 - `MyWebViewClient.java` — keeps `http(s)` navigation inside the WebView, but routes `weixin://` and `alipays://` deep links out to external apps via an `ACTION_VIEW` intent. Extend this method when adding support for other custom URL schemes (payment/wallet redirects).
-- `App.java` — `Application` subclass that boots the **Gravity Engine (引力引擎) analytics SDK** in `onCreate` (see below). Registered via `android:name=".App"` in the manifest.
+- `App.java` — `Application` subclass holding the analytics SDK init methods: `setupGravityEngine()` (引力引擎) and `setupBytedanceConvert(Activity)` (巨量转化). Both are **consent-gated** (see Privacy consent below) — not called unconditionally in `onCreate`. Registered via `android:name=".App"` in the manifest.
+- `PrivacyManager.java` — tiny SharedPreferences wrapper (`hasAgreed`/`setAgreed`) that is the single source of truth for privacy consent, read by both `App` and `MainActivity`.
 - Java package is `com.main.app` (fixed); the shipped `applicationId` differs per flavor.
+
+## Privacy consent (隐私弹窗)
+
+Both analytics SDKs collect device identifiers (OAID / AndroidID), so per PIPL they must init **only after** the user agrees to the privacy policy. The flow:
+
+- First launch (`!PrivacyManager.hasAgreed`): `MainActivity` shows a framework `AlertDialog` (`showPrivacyDialog()`) with clickable 《隐私政策》/《用户协议》 spans that open an in-app WebView. **Disagree** → `finishAffinity()` (no SDK init, game not loaded). **Agree** → `PrivacyManager.setAgreed()` → init both SDKs → `loadGame()`.
+- Returning user (`hasAgreed`): `App.onCreate` inits Gravity early; `MainActivity.onCreate` inits 巨量 (needs an `Activity`, so it can't run in `App.onCreate`) then loads the game.
+- The 《隐私政策》/《用户协议》 link URLs are injected per-flavor via `PRIVACY_POLICY_URL` / `USER_AGREEMENT_URL` `buildConfigField`s (currently `https://example.com/...` placeholders — replace with real URLs).
+- **Inner-class caveat**: AGP 7.4.1's bundled R8 4.0.48 throws a `NullPointerException` when dexing **anonymous** inner classes. All listeners / `ClickableSpan`s / SDK callbacks here are written as **named `static` nested classes** to avoid it — keep it that way.
 
 ## Gravity Engine (引力引擎) SDK
 
 Analytics/attribution SDK integrated for buy-volume (买量) & ROI tracking. Official doc: `https://help.gravity-engine.com/docs/android`.
 
-- **Init**: `App.java` calls `GEConfig.getInstance(...)` → `GravityEngineSDK.setupAndStart(config)` → `instance.initialize(...)` in `Application.onCreate`. No privacy popup exists, so `onCreate` is the earliest valid call site; if a consent dialog is ever added, move `setupGravityEngine()` to after consent.
+- **Init**: `App.java` calls `GEConfig.getInstance(...)` → `GravityEngineSDK.setupAndStart(config)` → `instance.initialize(...)` inside `setupGravityEngine()`. This is **consent-gated**: `App.onCreate` only calls it when `PrivacyManager.hasAgreed()`; on first launch it runs from the privacy dialog's Agree handler (see Privacy consent above).
 - **Per-channel config is injected via `buildConfigField`** (same philosophy as `URL_ENTRY`) — never hardcode in Java:
   - `GE_ACCESS_TOKEN` — project pass-token from 设置-应用管理.
   - `GE_CHANNEL` — init channel (e.g. `wechat`).
 - **Dependencies** (domestic build): `cn.gravity.android:GravityEngineSDK:5.0.31` + `com.huawei.hms:ads-identifier` + `com.hihonor.mcs:ads-identifier` (the last two boost OAID-based attribution). For an overseas build use `oversea.gravity.android:GravityEngineSDK` and add `com.android.installreferrer:installreferrer`. Check `https://help.gravity-engine.com/docs/android-release-notes` for the latest version.
 - **Repos**: added to `allprojects.repositories` in root `build.gradle` (gravity nexus + huawei + hihonor maven).
-- **minSdk**: the SDK requires `minSdkVersion >= 19`, so `PROP_MIN_SDK_VERSION` was raised from 16 to 19.
+- **minSdk**: the SDK requires `minSdkVersion >= 19` (raised from the template's 16; later bumped again to 21 for 巨量 — see below).
 - **Permissions/queries** (network state, `READ_PHONE_STATE`, OAID `<queries>`, etc.) come from the SDK AAR's own manifest via manifest merge — they are NOT re-declared in the app manifest.
 - **Event reporting** (not yet wired up — call on the saved `GravityEngineSDK` instance when those business events occur): `trackRegisterEvent()`, `trackPayEvent(...)`, `trackAdShowEvent(...)`, `trackWithdrawEvent(...)`. Since this is a WebView shell, these would typically be triggered from H5 via a JS bridge.
+
+## 巨量引擎 (Ocean Engine) 转化 SDK — AppConvert / BDConvert
+
+ByteDance buy-volume attribution SDK ("巨量归因方案", domestic non-融合 / 转化SDK flow). Init mirrors the Gravity Engine philosophy but differs in two key ways: it needs an `Activity`, and it carries **no code-level AppID** — attribution is keyed off the `applicationId`, registered as an "资产" (asset) in the 巨量 platform.
+
+- **Init**: `App.setupBytedanceConvert(Activity)` calls `BDConvert.INSTANCE.init(this, activity)` (官方「接入方式A」). `BDConvert` is a Kotlin object — from Java it's `BDConvert.INSTANCE`. Init auto-sends the launch event and collects OAID/AndroidID, so it is **consent-gated**. Because it requires an `Activity`, it is called from `MainActivity` (both the agreed-returning-user path in `onCreate` and the dialog's Agree handler), NOT from `App.onCreate`. Do **not** set `autoSendLaunchEvent(false)` under 方式A.
+- **No `buildConfigField`** is needed for it (no AppID/token in code) — the platform attributes by package name. The register/purchase events do take a channel string (`"wechat"`), relevant only once events are wired.
+- **Dependency**: `com.bytedance.ads:AppConvert:2.0.4`. **Repo**: `https://artifact.bytedance.com/repository/Volcengine/` added to `allprojects.repositories`. Proguard rules are bundled in the AAR — the host does **not** add any. Check the Lark doc for newer versions.
+- **minSdk**: AppConvert 2.0.4 requires `minSdkVersion >= 21`, so `PROP_MIN_SDK_VERSION` was raised 19 → 21.
+- **Platform setup** (outside the code): 巨量后台 → 资产 → 新建安卓应用资产 (fill `applicationId`) → 数据检测选「转化SDK」→ 调试事件.
+- **Event reporting** (not yet wired up): `com.bytedance.ads.convert.event.ConvertReportHelper.onEventRegister(channel, success)` / `onEventPurchase(...)` / `onEventV3(name, jsonObject)` (e.g. `game_addiction` 关键行为). As a WebView shell, these would be triggered from H5 via a JS bridge.
 
 ## Build & run
 
@@ -61,6 +82,6 @@ Release keystores live in `app/sign/release/` (debug key in `app/sign/debug/`). 
 
 ## Environment expectations
 
-- SDK / build versions come from `gradle.properties`: `compileSdk`/`targetSdk` 32, `minSdk` 16, Android Gradle Plugin 7.4.1.
+- SDK / build versions come from `gradle.properties`: `compileSdk`/`targetSdk` 32, `minSdk` 21 (raised 16 → 19 for Gravity Engine, then 19 → 21 for 巨量 AppConvert), Android Gradle Plugin 7.4.1.
 - `local.properties` pins `sdk.dir` to a local Android SDK path and is git-ignored — it must exist for Gradle to run.
 - `usesCleartextTraffic="true"` is set in the manifest, so plain-`http` game URLs work.
