@@ -30,6 +30,9 @@ android {
             // 引力引擎：项目通行证 AccessToken 与初始化渠道（按渠道注入，勿写死在 Java 里）
             buildConfigField("String", "GE_ACCESS_TOKEN", '"pjExPDC9u3TW0fgtyrKiNmbO8Uksmz26"')
             buildConfigField("String", "GE_CHANNEL", '"wechat"')
+            // 隐私弹窗里《隐私政策》《用户协议》的链接（按渠道注入）。TODO 占位，待提供正式地址后替换
+            buildConfigField("String", "PRIVACY_POLICY_URL", '"https://example.com/privacy"')
+            buildConfigField("String", "USER_AGREEMENT_URL", '"https://example.com/agreement"')
         }
     }
 }

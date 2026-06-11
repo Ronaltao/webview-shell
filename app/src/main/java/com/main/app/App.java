@@ -16,8 +16,10 @@ import cn.gravity.android.InitializeCallback;
  * AccessToken 与渠道(CHANNEL)通过各 flavor 的 BuildConfig 注入（见 app/build.gradle），
  * 不在代码里写死，保持与本项目「按渠道出包」的一致约定。
  *
- * 注：本壳应用没有隐私弹窗，故在 onCreate 中初始化即为最早可用时机。
- * 若后续增加隐私协议弹窗，应改为在用户同意之后再调用下面的 setupGravityEngine()。
+ * 注：引力引擎会采集 OAID/AndroidID 等设备标识，必须取得用户同意后才能初始化。
+ * 因此这里 onCreate 只在「用户此前已同意隐私政策」时才初始化（老用户的最早可用时机）；
+ * 首次启动尚未同意时不在此初始化，改由 {@link MainActivity} 的隐私弹窗在用户点「同意」后
+ * 调用 {@link #setupGravityEngine()}。同意状态由 {@link PrivacyManager} 统一管理。
  */
 public class App extends Application {
 
@@ -29,10 +31,14 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        setupGravityEngine();
+        // 仅老用户（已同意过）在此尽早初始化；未同意时等隐私弹窗同意后再初始化。
+        if (PrivacyManager.hasAgreed(this)) {
+            setupGravityEngine();
+        }
     }
 
-    private void setupGravityEngine() {
+    /** 初始化引力引擎 SDK。务必在用户同意隐私政策后调用（onCreate 或弹窗「同意」回调）。 */
+    public void setupGravityEngine() {
         // 1. 配置并启动 SDK
         GEConfig config = GEConfig.getInstance(this, BuildConfig.GE_ACCESS_TOKEN);
         // 以下设备标识采集开关默认开启，引力建议不要关闭，否则会影响归因率。
